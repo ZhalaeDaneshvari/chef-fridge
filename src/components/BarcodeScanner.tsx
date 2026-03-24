@@ -12,23 +12,47 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    scannerRef.current = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      /* verbose= */ false
-    );
+    let html5QrcodeScanner: Html5QrcodeScanner | null = null;
 
-    scannerRef.current.render(
-      (decodedText) => {
-        onScan(decodedText);
-        if (scannerRef.current) {
-          scannerRef.current.clear();
-        }
-      },
-      (errorMessage) => {
-        // Silently ignore errors during scanning
+    const startScanner = async () => {
+      try {
+        // Check for camera permissions first
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop()); // Stop the stream immediately, we just wanted to check permission
+
+        html5QrcodeScanner = new Html5QrcodeScanner(
+          "reader",
+          { 
+            fps: 10, 
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            showTorchButtonIfSupported: true,
+            showZoomSliderIfSupported: true,
+            defaultZoomValueIfSupported: 2
+          },
+          /* verbose= */ false
+        );
+
+        html5QrcodeScanner.render(
+          (decodedText) => {
+            onScan(decodedText);
+            if (html5QrcodeScanner) {
+              html5QrcodeScanner.clear().catch(err => console.error("Failed to clear scanner", err));
+            }
+          },
+          (errorMessage) => {
+            // Silently ignore errors during scanning
+          }
+        );
+        
+        scannerRef.current = html5QrcodeScanner;
+      } catch (err) {
+        console.error("Camera access error:", err);
+        setError("Camera access denied. Please enable camera permissions in your browser settings.");
       }
-    );
+    };
+
+    startScanner();
 
     return () => {
       if (scannerRef.current) {
