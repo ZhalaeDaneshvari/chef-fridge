@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User Profile Rules
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && 
+        request.resource.data.keys().hasAll(['email']) &&
+        request.resource.data.email is string;
+      
+      // Fridge Items Subcollection
+      match /fridgeItems/{itemId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // Recipes Subcollection
+      match /recipes/{recipeId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}
