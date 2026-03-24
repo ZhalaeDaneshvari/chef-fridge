@@ -1,7 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ===============================================================
     // Helper Functions
+    // ===============================================================
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -10,21 +12,71 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // User Profile Rules
+    // ===============================================================
+    // User Profile & Nutrition
+    // ===============================================================
     match /users/{userId} {
       allow read: if isOwner(userId);
-      allow create, update: if isOwner(userId) && 
-        request.resource.data.keys().hasAll(['email']) &&
-        request.resource.data.email is string;
+      allow create, update: if isOwner(userId);
       
-      // Fridge Items Subcollection
+      // Nutrition Log: Personal fitness and food intake
+      match /nutritionLog/{logId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Personal data fallback (when not in a household)
       match /fridgeItems/{itemId} {
         allow read, write: if isOwner(userId);
       }
-      
-      // Recipes Subcollection
+      match /history/{historyId} {
+        allow read, write: if isOwner(userId);
+      }
       match /recipes/{recipeId} {
         allow read, write: if isOwner(userId);
+      }
+      match /groceryList/{itemId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // ===============================================================
+    // Households & Shared Data
+    // ===============================================================
+    match /households/{householdId} {
+      // Helper to check if user is a member of the household
+      function isMember() {
+        return isAuthenticated() && 
+          (request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.members);
+      }
+
+      // Allow creation of households
+      allow create: if isAuthenticated();
+      
+      // Allow any authenticated user to get a household (to join it)
+      allow get: if isAuthenticated();
+      
+      // Allow members to list, read and update household metadata
+      allow list: if isMember();
+      allow update: if isMember() || (isAuthenticated() && request.resource.data.members.hasAny([request.auth.uid]));
+
+      // Fridge Items: Shared inventory
+      match /fridgeItems/{itemId} {
+        allow read, write: if isMember();
+      }
+      
+      // History: Shared lifetime log
+      match /history/{historyId} {
+        allow read, write: if isMember();
+      }
+      
+      // Recipes: Shared saved recipes
+      match /recipes/{recipeId} {
+        allow read, write: if isMember();
+      }
+
+      // Grocery List: Shared household list
+      match /groceryList/{itemId} {
+        allow read, write: if isMember();
       }
     }
   }

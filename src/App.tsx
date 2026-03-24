@@ -6,9 +6,14 @@ import { Toaster } from 'sonner';
 import { Fridge } from './components/Fridge';
 import { Recipes } from './components/Recipes';
 import { Profile } from './components/Profile';
+import { HistoryLog } from './components/HistoryLog';
+import { CalendarView } from './components/CalendarView';
+import { GroceryList } from './components/GroceryList';
 import { Layout } from './components/Layout';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChefHat, Refrigerator, User as UserIcon, LogOut, LogIn } from 'lucide-react';
+import { HouseholdProvider } from './contexts/HouseholdContext';
+import { Fitness } from './components/Fitness';
+import { ChefHat, Refrigerator, User as UserIcon, LogOut, LogIn, History, Calendar as CalendarIcon, Activity, ShoppingCart } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -38,41 +43,47 @@ export default function App() {
   return (
     <Router>
       <Toaster position="top-center" richColors />
-      <AnimatePresence mode="wait">
-        {!user ? (
-          <motion.div
-            key="login"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="h-screen w-screen flex flex-col items-center justify-center bg-stone-50 p-6"
-          >
-            <div className="max-w-md w-full text-center space-y-8">
-              <div className="space-y-2">
-                <ChefHat className="w-16 h-16 mx-auto text-stone-800" />
-                <h1 className="text-4xl font-serif font-light tracking-tight text-stone-900">ChefFridge AI</h1>
-                <p className="text-stone-500 font-light italic">Your personal AI chef & fridge companion</p>
+      <HouseholdProvider user={user}>
+        <AnimatePresence mode="wait">
+          {!user ? (
+            <motion.div
+              key="login"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-screen w-screen flex flex-col items-center justify-center bg-stone-50 p-6"
+            >
+              <div className="max-w-md w-full text-center space-y-8">
+                <div className="space-y-2">
+                  <ChefHat className="w-16 h-16 mx-auto text-stone-800" />
+                  <h1 className="text-4xl font-serif font-light tracking-tight text-stone-900">ChefFridge AI</h1>
+                  <p className="text-stone-500 font-light italic">Your personal AI chef & fridge companion</p>
+                </div>
+                <button
+                  onClick={loginWithGoogle}
+                  className="w-full py-4 px-6 bg-stone-900 text-stone-50 rounded-full font-medium flex items-center justify-center gap-3 hover:bg-stone-800 transition-colors"
+                >
+                  <LogIn className="w-5 h-5" />
+                  Connect with Google
+                </button>
               </div>
-              <button
-                onClick={loginWithGoogle}
-                className="w-full py-4 px-6 bg-stone-900 text-stone-50 rounded-full font-medium flex items-center justify-center gap-3 hover:bg-stone-800 transition-colors"
-              >
-                <LogIn className="w-5 h-5" />
-                Connect with Google
-              </button>
-            </div>
-          </motion.div>
-        ) : (
-          <Layout user={user}>
-            <Routes>
-              <Route path="/" element={<Fridge user={user} />} />
-              <Route path="/recipes" element={<Recipes user={user} />} />
-              <Route path="/profile" element={<Profile user={user} />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Layout>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          ) : (
+            <Layout user={user}>
+              <Routes>
+                <Route path="/" element={<Fridge user={user} />} />
+                <Route path="/grocery" element={<GroceryList user={user} />} />
+                <Route path="/recipes" element={<Recipes user={user} />} />
+                <Route path="/history" element={<HistoryLog user={user} />} />
+                <Route path="/calendar" element={<CalendarView user={user} />} />
+                <Route path="/fitness" element={<Fitness user={user} />} />
+                <Route path="/profile" element={<Profile user={user} />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Layout>
+          )}
+        </AnimatePresence>
+      </HouseholdProvider>
     </Router>
   );
 }

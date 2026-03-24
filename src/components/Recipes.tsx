@@ -4,39 +4,60 @@ import { db } from '../firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { generateRecipes, Recipe } from '../services/gemini';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChefHat, Loader2, Sparkles, Bookmark, Trash2, Flame, Beef, Wheat, Droplets, ChevronRight, Refrigerator } from 'lucide-react';
+import { ChefHat, Loader2, Sparkles, Bookmark, Trash2, Flame, Beef, Wheat, Droplets, ChevronRight, Refrigerator, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import { useHousehold } from '../contexts/HouseholdContext';
 
 export function Recipes({ user }: { user: User }) {
+  const { household } = useHousehold();
   const [fridgeItems, setFridgeItems] = useState<any[]>([]);
   const [savedRecipes, setSavedRecipes] = useState<any[]>([]);
   const [generatedRecipes, setGeneratedRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [userPreferences, setUserPreferences] = useState({ likes: [], dislikes: [], dietaryRestrictions: [] });
+  const [userPreferences, setUserPreferences] = useState({ 
+    likes: [], 
+    dislikes: [], 
+    allergies: [], 
+    cuisines: [],
+    healthConditions: [],
+    dietaryGoal: 'Maintain',
+    targetCalories: 2000
+  });
+
+  const basePath = household ? `households/${household.id}` : `users/${user.uid}`;
 
   useEffect(() => {
     // Fetch fridge items
-    const fridgeUnsubscribe = onSnapshot(collection(db, 'users', user.uid, 'fridgeItems'), (snapshot) => {
+    const fridgeUnsubscribe = onSnapshot(collection(db, basePath, 'fridgeItems'), (snapshot) => {
       setFridgeItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     // Fetch saved recipes
     const recipesUnsubscribe = onSnapshot(
-      query(collection(db, 'users', user.uid, 'recipes'), orderBy('savedAt', 'desc')), 
+      query(collection(db, basePath, 'recipes'), orderBy('savedAt', 'desc')), 
       (snapshot) => {
         setSavedRecipes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setLoading(false);
       }
     );
 
-    // Fetch user preferences
+    // Fetch user preferences and health metrics
     const fetchPrefs = async () => {
       const docRef = doc(db, 'users', user.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setUserPreferences(docSnap.data().preferences || { likes: [], dislikes: [], dietaryRestrictions: [] });
+        const data = docSnap.data();
+        setUserPreferences({
+          likes: data.preferences?.likes || [],
+          dislikes: data.preferences?.dislikes || [],
+          allergies: data.preferences?.allergies || [],
+          cuisines: data.preferences?.cuisines || [],
+          healthConditions: data.healthConditions || [],
+          dietaryGoal: data.dietaryGoal || 'Maintain',
+          targetCalories: data.targetCalories || 2000
+        });
       }
     };
     fetchPrefs();
@@ -70,7 +91,7 @@ export function Recipes({ user }: { user: User }) {
 
   const handleSaveRecipe = async (recipe: Recipe) => {
     try {
-      await addDoc(collection(db, 'users', user.uid, 'recipes'), {
+      await addDoc(collection(db, basePath, 'recipes'), {
         ...recipe,
         savedAt: serverTimestamp()
       });
@@ -82,7 +103,7 @@ export function Recipes({ user }: { user: User }) {
 
   const handleDeleteRecipe = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'users', user.uid, 'recipes', id));
+      await deleteDoc(doc(db, basePath, 'recipes', id));
       toast.success("Recipe removed");
     } catch (error) {
       toast.error("Failed to remove recipe");
@@ -125,6 +146,8 @@ export function Recipes({ user }: { user: User }) {
                   recipe={recipe} 
                   onSave={() => handleSaveRecipe(recipe)}
                   isGenerated
+                  fridgeItems={fridgeItems}
+                  basePath={basePath}
                 />
               ))}
             </div>
@@ -154,6 +177,8 @@ export function Recipes({ user }: { user: User }) {
                 key={recipe.id} 
                 recipe={recipe} 
                 onDelete={() => handleDeleteRecipe(recipe.id)}
+                fridgeItems={fridgeItems}
+                basePath={basePath}
               />
             ))}
           </div>
@@ -163,13 +188,45 @@ export function Recipes({ user }: { user: User }) {
   );
 }
 
-function RecipeCard({ recipe, onSave, onDelete, isGenerated }: { 
+function RecipeCard({ recipe, onSave, onDelete, isGenerated, fridgeItems, basePath }: { 
   recipe: any; 
   onSave?: () => void; 
   onDelete?: () => void;
   isGenerated?: boolean;
+  fridgeItems: any[];
+  basePath: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [addingToGrocery, setAddingToGrocery] = useState(false);
+
+  const handleAddToGrocery = async () => {
+    setAddingToGrocery(true);
+    try {
+      const missingIngredients = recipe.ingredients.filter((ing: string) => {
+        const lowerIng = ing.toLowerCase();
+        return !fridgeItems.some(item => lowerIng.includes(item.name.toLowerCase()));
+      });
+
+      if (missingIngredients.length === 0) {
+        toast.info("You already have all ingredients in your fridge!");
+        return;
+      }
+
+      for (const ing of missingIngredients) {
+        await addDoc(collection(db, basePath, 'groceryList'), {
+          name: ing,
+          quantity: '1 unit',
+          isBought: false,
+          addedAt: serverTimestamp()
+        });
+      }
+      toast.success(`Added ${missingIngredients.length} missing items to grocery list!`);
+    } catch (error) {
+      toast.error("Failed to add to grocery list");
+    } finally {
+      setAddingToGrocery(false);
+    }
+  };
 
   return (
     <motion.div
@@ -196,7 +253,7 @@ function RecipeCard({ recipe, onSave, onDelete, isGenerated }: {
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           <div className="bg-stone-50 p-2 rounded-xl text-center">
             <Flame className="w-3 h-3 text-orange-400 mx-auto mb-1" />
             <p className="text-[10px] font-bold text-stone-900">{recipe.nutrition.calories}</p>
@@ -213,6 +270,10 @@ function RecipeCard({ recipe, onSave, onDelete, isGenerated }: {
             <Droplets className="w-3 h-3 text-blue-400 mx-auto mb-1" />
             <p className="text-[10px] font-bold text-stone-900">{recipe.nutrition.fat}g</p>
           </div>
+          <div className="bg-stone-900 p-2 rounded-xl text-center">
+            <p className="text-[10px] font-bold text-stone-50 tracking-tighter">{recipe.servings}</p>
+            <p className="text-[8px] uppercase tracking-tighter text-stone-400">serv</p>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -228,13 +289,24 @@ function RecipeCard({ recipe, onSave, onDelete, isGenerated }: {
         </div>
       </div>
 
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full py-4 px-6 border-t border-stone-50 flex items-center justify-between text-xs font-medium text-stone-500 hover:bg-stone-50 transition-all"
-      >
-        {expanded ? "Hide Instructions" : "View Instructions"}
-        <ChevronRight className={cn("w-4 h-4 transition-transform", expanded && "rotate-90")} />
-      </button>
+      <div className="p-6 pt-0 space-y-4">
+        <button
+          onClick={handleAddToGrocery}
+          disabled={addingToGrocery}
+          className="w-full py-3 px-4 bg-stone-100 text-stone-900 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-stone-200 transition-all disabled:opacity-50"
+        >
+          {addingToGrocery ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+          Add Missing Ingredients to List
+        </button>
+
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full py-3 px-4 border border-stone-100 flex items-center justify-between text-xs font-medium text-stone-500 hover:bg-stone-50 rounded-xl transition-all"
+        >
+          {expanded ? "Hide Instructions" : "View Instructions"}
+          <ChevronRight className={cn("w-4 h-4 transition-transform", expanded && "rotate-90")} />
+        </button>
+      </div>
 
       <AnimatePresence>
         {expanded && (

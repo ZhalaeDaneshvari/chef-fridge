@@ -2,22 +2,44 @@
   "entities": {
     "User": {
       "title": "User Profile",
-      "description": "Stores user preferences and profile information.",
+      "description": "Stores user preferences, profile information, and health metrics.",
       "type": "object",
       "properties": {
         "displayName": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "photoURL": { "type": "string" },
+        "householdId": { "type": "string" },
+        "height": { "type": "number", "description": "Height in cm" },
+        "weight": { "type": "number", "description": "Weight in kg" },
+        "gender": { "type": "string", "enum": ["male", "female", "other"] },
+        "age": { "type": "number" },
+        "activityLevel": { "type": "string", "enum": ["sedentary", "light", "moderate", "active", "very_active"] },
+        "healthConditions": { "type": "array", "items": { "type": "string" }, "description": "e.g. PCOS, Diabetes, Gluten-free" },
+        "dietaryGoal": { "type": "string", "enum": ["cut", "bulk", "maintain"] },
+        "targetCalories": { "type": "number" },
         "preferences": {
           "type": "object",
           "properties": {
             "likes": { "type": "array", "items": { "type": "string" } },
             "dislikes": { "type": "array", "items": { "type": "string" } },
-            "dietaryRestrictions": { "type": "array", "items": { "type": "string" } }
+            "allergies": { "type": "array", "items": { "type": "string" } },
+            "cuisines": { "type": "array", "items": { "type": "string" } }
           }
         }
       },
       "required": ["email"]
+    },
+    "Household": {
+      "title": "Household",
+      "description": "A group of users sharing a fridge and grocery list.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "members": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "createdBy", "createdAt"]
     },
     "FridgeItem": {
       "title": "Fridge Item",
@@ -30,9 +52,51 @@
         "protein": { "type": "number" },
         "carbs": { "type": "number" },
         "fat": { "type": "number" },
-        "addedAt": { "type": "string", "format": "date-time" }
+        "addedAt": { "type": "string", "format": "date-time" },
+        "removedAt": { "type": "string", "format": "date-time" },
+        "expiryDate": { "type": "string", "format": "date" },
+        "barcode": { "type": "string" }
       },
       "required": ["name", "addedAt"]
+    },
+    "GroceryItem": {
+      "title": "Grocery Item",
+      "description": "An item on the shopping list.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "quantity": { "type": "string" },
+        "category": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" },
+        "isBought": { "type": "boolean" }
+      },
+      "required": ["name", "addedAt"]
+    },
+    "NutritionLog": {
+      "title": "Nutrition Log",
+      "description": "Daily nutrition intake and calories burned.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "caloriesConsumed": { "type": "number" },
+        "caloriesBurned": { "type": "number" },
+        "protein": { "type": "number" },
+        "carbs": { "type": "number" },
+        "fat": { "type": "number" },
+        "steps": { "type": "number" },
+        "meals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "calories": { "type": "number" },
+              "time": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "required": ["date"]
     },
     "Recipe": {
       "title": "Saved Recipe",
@@ -42,6 +106,7 @@
         "title": { "type": "string" },
         "ingredients": { "type": "array", "items": { "type": "string" } },
         "instructions": { "type": "string" },
+        "servings": { "type": "number" },
         "nutrition": {
           "type": "object",
           "properties": {
@@ -61,13 +126,45 @@
       "schema": "User",
       "description": "User profile and preferences."
     },
+    "/users/{userId}/nutritionLog/{logId}": {
+      "schema": "NutritionLog",
+      "description": "User's daily nutrition and fitness log."
+    },
     "/users/{userId}/fridgeItems/{itemId}": {
       "schema": "FridgeItem",
-      "description": "Items in the user's fridge."
+      "description": "Personal items in the user's fridge."
     },
     "/users/{userId}/recipes/{recipeId}": {
       "schema": "Recipe",
-      "description": "User's saved recipes."
+      "description": "User's personal saved recipes."
+    },
+    "/users/{userId}/history/{historyId}": {
+      "schema": "FridgeItem",
+      "description": "User's personal log of every food item ever bought."
+    },
+    "/users/{userId}/groceryList/{itemId}": {
+      "schema": "GroceryItem",
+      "description": "User's personal grocery list."
+    },
+    "/households/{householdId}": {
+      "schema": "Household",
+      "description": "Household metadata."
+    },
+    "/households/{householdId}/fridgeItems/{itemId}": {
+      "schema": "FridgeItem",
+      "description": "Shared items in the household fridge."
+    },
+    "/households/{householdId}/recipes/{recipeId}": {
+      "schema": "Recipe",
+      "description": "Household's saved recipes."
+    },
+    "/households/{householdId}/history/{historyId}": {
+      "schema": "FridgeItem",
+      "description": "Shared log of every food item ever bought."
+    },
+    "/households/{householdId}/groceryList/{itemId}": {
+      "schema": "GroceryItem",
+      "description": "Shared household grocery list."
     }
   }
 }
